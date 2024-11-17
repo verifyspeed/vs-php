@@ -11,25 +11,14 @@ Official PHP SDK for VerifySpeed API.
 
 You can install the package via composer: 
 
-bash
+
+```bash
 composer require verifyspeed/php-sdk
-
-## Usage
-
-php
-use VerifySpeed\Client\VerifySpeedClient;
-use VerifySpeed\Enums\VerificationType;
-$client = new VerifySpeedClient('your-api-key');
-// Create a verification
-$verification = $client->createVerification(
-'method-name',
-'127.0.0.1',
-VerificationType::DeepLink
-);
+```
 
 ## Documentation
 
-For detailed documentation, please visit [docs.verifyspeed.com](https://docs.verifyspeed.com)
+For detailed documentation, please visit [Docs](https://www.verifyspeed.com/docs/about-verifySpeed)
 
 ## License
 
