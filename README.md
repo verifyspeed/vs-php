@@ -13,7 +13,7 @@ You can install the package via composer:
 
 
 ```bash
-composer require verifyspeed/php-sdk
+composer require verifyspeed/vs-php
 ```
 
 ## Documentation
