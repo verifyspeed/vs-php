@@ -5,15 +5,12 @@ namespace VerifySpeed\Client;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\GuzzleException;
 use VerifySpeed\Constants\LibraryConstants;
-use VerifySpeed\Enums\MethodType;
-use VerifySpeed\Enums\VerificationType;
 use VerifySpeed\Exceptions\FailedCreateVerificationException;
 use VerifySpeed\Exceptions\FailedInitializationException;
 use VerifySpeed\Exceptions\FailedVerifyingTokenException;
 use VerifySpeed\Models\CreatedVerification;
 use VerifySpeed\Models\Initialization;
 use VerifySpeed\Models\VerificationResult;
-use VerifySpeed\Tools\Convertors;
 
 class VerifySpeedClient implements IVerifySpeedClient
 {
@@ -69,19 +66,15 @@ class VerifySpeedClient implements IVerifySpeedClient
     public function createVerification(
         string $methodName,
         string $clientIPv4Address,
-        VerificationType $verificationType,
         ?string $language = null
     ): CreatedVerification {
         try {
-            $verificationTypeValue = Convertors::getVerificationTypeValue($verificationType);
-
             $response = $this->httpClient->post('v1/verifications/create', [
                 'headers' => [
                     LibraryConstants::CLIENT_IPV4_ADDRESS_HEADER_NAME => $clientIPv4Address
                 ],
                 'json' => array_filter([
                     'methodName' => $methodName,
-                    'verificationType' => $verificationTypeValue,
                     'language' => $language
                 ], fn($value) => $value !== null)
             ]);
@@ -111,16 +104,6 @@ class VerifySpeedClient implements IVerifySpeedClient
                 previous: $e
             );
         }
-    }
-
-    public function createVerificationWithMethodType(
-        MethodType $methodType,
-        string $clientIPv4Address,
-        VerificationType $verificationType,
-        ?string $language = null
-    ): CreatedVerification {
-        $methodName = Convertors::getMethodName($methodType);
-        return $this->createVerification($methodName, $clientIPv4Address, $verificationType, $language);
     }
 
     public function verifyToken(string $token): VerificationResult
