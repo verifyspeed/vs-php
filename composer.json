@@ -18,6 +18,22 @@
     "require-dev": {
         "phpunit/phpunit": "^10.0"
     },
+    "config": {
+        "archive": {
+            "exclude": [
+                "/vendor",
+                "/.gitignore",
+                "/.idea",
+                "/.vscode",
+                "/examples/",
+                "examples/*",
+                "composer.lock",
+                ".phpunit.result.cache",
+                "*.test.php",
+                "phpunit.xml"
+            ]
+        }
+    },
     "keywords": [
         "verifyspeed",
         "verify",
