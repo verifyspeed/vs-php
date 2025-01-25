@@ -189,9 +189,11 @@ class VerifySpeed
                 'json' => ['phoneNumber' => $normalizedNumber]
             ]);
 
-            if ($response->getStatusCode() !== 200) {
+            $statusCode = $response->getStatusCode();
+
+            if ($statusCode < 200 || $statusCode >= 300) {
                 throw new \RuntimeException(
-                    "HTTP error! status: {$response->getStatusCode()} {$response->getReasonPhrase()}"
+                    "HTTP error! status: {$statusCode} {$response->getReasonPhrase()}"
                 );
             }
         } catch (NumberParseException $error) {
