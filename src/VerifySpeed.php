@@ -6,219 +6,110 @@ use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\GuzzleException;
 use libphonenumber\PhoneNumberUtil;
 use libphonenumber\NumberParseException;
-use Endroid\QrCode\QrCode;
-use Endroid\QrCode\Writer\PngWriter;
-use Endroid\QrCode\Color\Color;
 
 class VerifySpeed
 {
-    private static ?string $clientKey = null;
+    private const OTP_METHODS = ['whatsapp-otp', 'telegram-otp', 'sms-otp'];
+
+    private static ?string $serverKey = null;
     private static string $baseUrl = 'https://api.verifyspeed.com/v1/';
     private static ?HttpClient $httpClient = null;
 
     private static function getHttpClient(): HttpClient
     {
         if (self::$httpClient === null) {
-            $headers = ['Content-Type' => 'application/json'];
-            if (self::$clientKey) {
-                $headers['client-key'] = self::$clientKey;
-            }
-
             self::$httpClient = new HttpClient([
                 'base_uri' => self::$baseUrl,
-                'headers' => $headers
+                'headers' => ['Content-Type' => 'application/json'],
             ]);
         }
         return self::$httpClient;
     }
 
-    public static function getClientKey(): ?string
+    public static function getServerKey(): ?string
     {
-        return self::$clientKey;
+        return self::$serverKey;
     }
 
-    public static function setClientKey(string $clientKey): void
+    public static function setServerKey(string $serverKey): void
     {
-        if (!$clientKey) {
-            throw new \InvalidArgumentException('Client key is required');
+        if (!$serverKey) {
+            throw new \InvalidArgumentException('Server key is required');
         }
 
-        self::$clientKey = $clientKey;
-        self::$httpClient = null;
+        self::$serverKey = $serverKey;
     }
 
-    private static function validateClientKey(): void
+    private static function validateServerKey(): void
     {
-        if (!self::$clientKey || trim(self::$clientKey) === '') {
-            throw new \RuntimeException('Client key not set. Call setClientKey first.');
-        }
-    }
-
-    public static function initialize(): array
-    {
-        self::validateClientKey();
-
-        try {
-            $response = self::getHttpClient()->get('sdk/initialize');
-            
-            if ($response->getStatusCode() !== 200) {
-                throw new \RuntimeException(
-                    "HTTP error! status: {$response->getStatusCode()} {$response->getReasonPhrase()}"
-                );
-            }
-
-            $data = json_decode($response->getBody()->getContents(), true);
-            return array_map(
-                fn(array $method) => VerificationMethod::fromArray($method),
-                $data['availableMethods']
-            );
-        } catch (GuzzleException $error) {
-            throw new \RuntimeException("Failed to initialize: {$error->getMessage()}");
+        if (!self::$serverKey || trim(self::$serverKey) === '') {
+            throw new \RuntimeException('Server key not set. Call setServerKey first.');
         }
     }
 
-    public static function getVerificationToken(string $verificationKey): string
+    private static function isOtpMethod(string $methodName): bool
     {
-        try {
-            $response = self::getHttpClient()->get('sdk/token', [
-                'headers' => [
-                    'verification-key' => $verificationKey,
-                    'platform' => 'web'
-                ]
-            ]);
-
-            if ($response->getStatusCode() !== 200) {
-                throw new \RuntimeException(
-                    "HTTP error! status: {$response->getStatusCode()} {$response->getReasonPhrase()}"
-                );
-            }
-
-            $data = json_decode($response->getBody()->getContents(), true);
-            return $data['token'];
-        } catch (GuzzleException $error) {
-            throw new \RuntimeException("Failed to get verification token: {$error->getMessage()}");
-        }
+        return in_array($methodName, self::OTP_METHODS, true);
     }
 
-    public static function convertDeepLinkToQRCode(
-        string $deepLink,
-        ?QRCodeOptions $options = null
-    ): string {
-        if (!$deepLink) {
-            throw new \InvalidArgumentException('Deep link is required');
-        }
-
-        try {
-            $options ??= new QRCodeOptions();
-      
-            // Default colors
-            $backgroundColor = [255, 255, 255]; // white
-            $foregroundColor = [0, 0, 0]; // black
-
-            try {
-                $backgroundColorHex = substr($options->getBackgroundColor(), 1);
-                $foregroundColorHex = substr($options->getForegroundColor(), 1);
-
-                // Convert hex to RGB components
-                $backgroundColor = [
-                    hexdec(substr($backgroundColorHex, 0, 2)),
-                    hexdec(substr($backgroundColorHex, 2, 2)), 
-                    hexdec(substr($backgroundColorHex, 4, 2))
-                ];
-
-                $foregroundColor = [
-                    hexdec(substr($foregroundColorHex, 0, 2)),
-                    hexdec(substr($foregroundColorHex, 2, 2)),
-                    hexdec(substr($foregroundColorHex, 4, 2))
-                ];
-            } catch (\Exception $e) {
-                // Silently ignore color parsing errors and use defaults
-            }
-
-            // Create basic QR code
-            $qrCode = new QrCode(
-                data: $deepLink,
-                size: $options->getWidth(),
-                margin: $options->getMargin(),
-                foregroundColor: new Color(
-                    $foregroundColor[0],
-                    $foregroundColor[1], 
-                    $foregroundColor[2]
-                ),
-                backgroundColor: new Color(
-                    $backgroundColor[0],
-                    $backgroundColor[1],
-                    $backgroundColor[2]
-                )
-            );
-
-            $writer = new PngWriter();
-            $result = $writer->write($qrCode);
-
-            return $result->getDataUri();
-        } catch (\Exception $error) {
-            throw new \RuntimeException("Failed to convert deep link to QR code: {$error->getMessage()}");
-        }
-    }
-
-    public static function sendOTP(string $verificationKey, string $phoneNumber): void
+    private static function normalizePhoneNumber(string $phoneNumber): string
     {
-        if (!$verificationKey) {
-            throw new \InvalidArgumentException('Verification key is required');
-        }
-        if (!$phoneNumber) {
-            throw new \InvalidArgumentException('Phone number is required');
-        }
-
         try {
             $phoneUtil = PhoneNumberUtil::getInstance();
             $parsedNumber = $phoneUtil->parse($phoneNumber);
-            
+
             if (!$phoneUtil->isValidNumber($parsedNumber)) {
                 throw new \InvalidArgumentException(
                     'Invalid phone number format. Please use E.164 format (e.g., +1234567890)'
                 );
             }
 
-            $normalizedNumber = $phoneUtil->format($parsedNumber, \libphonenumber\PhoneNumberFormat::E164);
-
-            $response = self::getHttpClient()->post('sdk/send-otp', [
-                'headers' => [
-                    'verification-key' => $verificationKey
-                ],
-                'json' => ['phoneNumber' => $normalizedNumber]
-            ]);
-
-            $statusCode = $response->getStatusCode();
-
-            if ($statusCode < 200 || $statusCode >= 300) {
-                throw new \RuntimeException(
-                    "HTTP error! status: {$statusCode} {$response->getReasonPhrase()}"
-                );
-            }
+            return $phoneUtil->format($parsedNumber, \libphonenumber\PhoneNumberFormat::E164);
         } catch (NumberParseException $error) {
             throw new \InvalidArgumentException('Invalid phone number: ' . $error->getMessage());
-        } catch (GuzzleException $error) {
-            throw new \RuntimeException("Failed to send OTP: {$error->getMessage()}");
         }
     }
 
-    public static function validateOTP(string $verificationKey, string $code): string
-    {
-        if (!$verificationKey) {
-            throw new \RuntimeException('Verification key is required');
+    public static function createVerification(
+        string $methodName,
+        string $clientIpv4Address,
+        ?string $language = null,
+        ?string $phoneNumber = null
+    ): VerificationResult {
+        self::validateServerKey();
+
+        if (!$methodName) {
+            throw new \InvalidArgumentException('Method name is required');
         }
 
-        if (!$code) {
-            throw new \InvalidArgumentException('OTP code is required');
+        if (!$clientIpv4Address) {
+            throw new \InvalidArgumentException('Client IPv4 address is required');
+        }
+
+        if (self::isOtpMethod($methodName)) {
+            if (!$phoneNumber || trim($phoneNumber) === '') {
+                throw new \InvalidArgumentException(
+                    'Phone number is required for OTP verification methods (whatsapp-otp, telegram-otp, sms-otp)'
+                );
+            }
+            $phoneNumber = self::normalizePhoneNumber($phoneNumber);
+        }
+
+        $body = ['methodName' => $methodName];
+        if ($language !== null) {
+            $body['language'] = $language;
+        }
+        if ($phoneNumber !== null) {
+            $body['phoneNumber'] = $phoneNumber;
         }
 
         try {
-            $response = self::getHttpClient()->post('sdk/validate-otp', [
+            $response = self::getHttpClient()->post('verifications/create', [
                 'headers' => [
-                    'verification-key' => $verificationKey
+                    'server-key' => self::$serverKey,
+                    'client-ipv4-address' => $clientIpv4Address,
                 ],
-                'json' => ['code' => $code]
+                'json' => $body,
             ]);
 
             if ($response->getStatusCode() !== 200) {
@@ -228,18 +119,19 @@ class VerifySpeed
             }
 
             $data = json_decode($response->getBody()->getContents(), true);
-            return $data['token'];
+            return VerificationResult::fromArray($data);
         } catch (GuzzleException $error) {
-            throw new \RuntimeException("Failed to validate OTP: {$error->getMessage()}");
+            throw new \RuntimeException("Failed to create verification: {$error->getMessage()}");
         }
     }
-} 
+}
 
-class VerificationMethod
+class VerificationResult
 {
     public function __construct(
         private readonly string $methodName,
-        private readonly string $displayName
+        private readonly string $verificationKey,
+        private readonly ?string $deepLink
     ) {}
 
     public function getMethodName(): string
@@ -247,16 +139,22 @@ class VerificationMethod
         return $this->methodName;
     }
 
-    public function getDisplayName(): string
+    public function getVerificationKey(): string
     {
-        return $this->displayName;
+        return $this->verificationKey;
+    }
+
+    public function getDeepLink(): ?string
+    {
+        return $this->deepLink;
     }
 
     public static function fromArray(array $data): self
     {
         return new self(
             methodName: $data['methodName'],
-            displayName: $data['displayName']
+            verificationKey: $data['verificationKey'],
+            deepLink: $data['deepLink'] ?? null
         );
     }
 
@@ -264,73 +162,8 @@ class VerificationMethod
     {
         return [
             'methodName' => $this->methodName,
-            'displayName' => $this->displayName
+            'verificationKey' => $this->verificationKey,
+            'deepLink' => $this->deepLink,
         ];
     }
-} 
-
-class QRCodeOptions
-{
-    public function __construct(
-        private readonly ?int $width = 300,
-        private readonly ?int $margin = 2,
-        private readonly ?string $foregroundColor = '#000000',
-        private readonly ?string $backgroundColor = '#ffffff',
-        private readonly ?string $errorCorrectionLevel = 'M',
-        private readonly ?array $centerImage = null
-    ) {}
-
-    public function getWidth(): int
-    {
-        return $this->width ?? 300;
-    }
-
-    public function getMargin(): int
-    {
-        return $this->margin ?? 2;
-    }
-
-    public function getForegroundColor(): string
-    {
-        return $this->foregroundColor ?? '#000000';
-    }
-
-    public function getBackgroundColor(): string
-    {
-        return $this->backgroundColor ?? '#ffffff';
-    }
-
-    public function getErrorCorrectionLevel(): string
-    {
-        return $this->errorCorrectionLevel ?? 'M';
-    }
-
-    public function getCenterImage(): ?array
-    {
-        return $this->centerImage;
-    }
-
-    public static function fromArray(array $data): self
-    {
-        return new self(
-            width: $data['width'] ?? null,
-            margin: $data['margin'] ?? null,
-            foregroundColor: $data['foregroundColor'] ?? null,
-            backgroundColor: $data['backgroundColor'] ?? null,
-            errorCorrectionLevel: $data['errorCorrectionLevel'] ?? null,
-            centerImage: $data['centerImage'] ?? null
-        );
-    }
-
-    public function toArray(): array
-    {
-        return array_filter([
-            'width' => $this->width,
-            'margin' => $this->margin,
-            'foregroundColor' => $this->foregroundColor,
-            'backgroundColor' => $this->backgroundColor,
-            'errorCorrectionLevel' => $this->errorCorrectionLevel,
-            'centerImage' => $this->centerImage
-        ], fn($value) => $value !== null);
-    }
-} 
+}
