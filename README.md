@@ -18,7 +18,7 @@ composer require verifyspeed/vs-php
 
 ## Documentation
 
-For detailed documentation, please visit [Docs](https://www.verifyspeed.com/docs/about-verifySpeed)
+For detailed documentation, please visit [Docs](https://doc.verifyspeed.com/docs/about-verifySpeed)
 
 ## License
 
