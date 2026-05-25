@@ -215,6 +215,7 @@ class ValidateOtpResult
     public function __construct(
         private readonly bool $succeed,
         private readonly ?string $token,
+        private readonly ?string $phoneNumber,
         private readonly ?string $errorMessage,
         private readonly ?string $errorCode
     ) {}
@@ -227,6 +228,11 @@ class ValidateOtpResult
     public function getToken(): ?string
     {
         return $this->token;
+    }
+
+    public function getPhoneNumber(): ?string
+    {
+        return $this->phoneNumber;
     }
 
     public function getErrorMessage(): ?string
@@ -244,6 +250,7 @@ class ValidateOtpResult
         return new self(
             succeed: (bool) ($data['succeed'] ?? false),
             token: $data['token'] ?? null,
+            phoneNumber: $data['phoneNumber'] ?? null,
             errorMessage: $data['errorMessage'] ?? null,
             errorCode: $data['errorCode'] ?? null
         );
@@ -254,6 +261,7 @@ class ValidateOtpResult
         return [
             'succeed' => $this->succeed,
             'token' => $this->token,
+            'phoneNumber' => $this->phoneNumber,
             'errorMessage' => $this->errorMessage,
             'errorCode' => $this->errorCode,
         ];
